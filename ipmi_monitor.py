@@ -37,7 +37,9 @@ class IPMIMonitor:
     def _get_cached_result(self, key: str) -> Any:
         """Get cached result if valid"""
         if self._is_cache_valid(key):
+            logger.debug(f"Cache hit for {key}")
             return self._cache[key]['value']
+        logger.debug(f"Cache miss for {key}")
         return None
 
     @lru_cache(maxsize=128)
@@ -46,7 +48,10 @@ class IPMIMonitor:
         try:
             cmd = f"ipmitool -I lanplus -H {self.ipmi_host} -U {self.ipmi_user} -P {self.ipmi_password} {command}"
             logger.debug(f"Executing IPMI command: {cmd}")
+            start_time = time.time()
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            duration = time.time() - start_time
+            logger.debug(f"IPMI command executed in {duration:.2f} seconds")
             logger.debug(f"IPMI command output: {result.stdout}")
             logger.debug(f"IPMI command error: {result.stderr}")
             
