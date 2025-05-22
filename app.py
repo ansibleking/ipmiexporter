@@ -9,38 +9,40 @@ from config import load_server_configs, get_teams_webhook
 from ipmi_monitor import IPMIMonitor
 
 app = Flask(__name__)
-load_dotenv()
 
 # Configure logging
-logging.basicConfig(level=logging.DEBUG)  # Changed to DEBUG for more detailed logs
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# Load server configurations
-servers = load_server_configs()
+# Routes
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-# Initialize IPMI monitors for each server
-ipmi_monitors = {
-    server.name: IPMIMonitor(server)
-    for server in servers
-}
-
-# Initialize Teams notifier
-teams_webhook = get_teams_webhook()
-if teams_webhook:
-    teams_notifier = pymsteams.connectorcard(teams_webhook)
-else:
-    teams_notifier = None
+@app.route('/metrics')
+def metrics():
+    return jsonify(get_ipmi_metrics())
 
 @app.route('/test-ipmi/<server_name>')
 def test_ipmi(server_name):
     """Test IPMI connection for a specific server"""
-    if server_name not in ipmi_monitors:
-        return jsonify({
-            'error': f'Server {server_name} not found'
-        }), 404
-    
-    monitor = ipmi_monitors[server_name]
     try:
+        # Load server configurations
+        servers = load_server_configs()
+        if server_name not in [server.name for server in servers]:
+            return jsonify({
+                'error': f'Server {server_name} not found'
+            }), 404
+        
+        # Initialize IPMI monitor for this server
+        server = next((s for s in servers if s.name == server_name), None)
+        if not server:
+            return jsonify({
+                'error': 'Server configuration not found'
+            }), 500
+            
+        monitor = IPMIMonitor(server)
+        
         # Test basic IPMI connection
         result = monitor._run_ipmi_command('mc info')
         if not result:
@@ -62,9 +64,18 @@ def test_ipmi(server_name):
             'error': str(e)
         }), 500
 
-class TeamsNotifier:
-    def __init__(self):
-        self.webhook_url = os.getenv('TEAMS_WEBHOOK_URL')
+# Initialize Teams notifier
+teams_webhook = get_teams_webhook()
+teams_notifier = None
+if teams_webhook:
+    teams_notifier = pymsteams.connectorcard(teams_webhook)
+
+# Load server configurations and initialize monitors
+servers = load_server_configs()
+ipmi_monitors = {
+    server.name: IPMIMonitor(server)
+    for server in servers
+}
         
     def send_alert(self, title, message, severity='warning'):
         if not self.webhook_url:

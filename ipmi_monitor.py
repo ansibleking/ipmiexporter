@@ -3,6 +3,8 @@ import logging
 from typing import Dict, Any, List
 import re
 from datetime import datetime
+import time
+from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 
@@ -15,8 +17,30 @@ class IPMIMonitor:
         self.name = server_config.name
         self.vendor = self._detect_vendor()
         self.alert_history = []  # Store alert history
+        self._last_update = 0
+        self._cache = {}
         logger.info(f"Initialized IPMI monitor for {self.name} ({self.ipmi_host})")
 
+    def _is_cache_valid(self, key: str, timeout: int = 30) -> bool:
+        """Check if cached value is still valid"""
+        if key not in self._cache:
+            return False
+        return time.time() - self._cache[key]['timestamp'] < timeout
+
+    def _cache_result(self, key: str, value: Any, timeout: int = 30) -> None:
+        """Cache a result with timestamp"""
+        self._cache[key] = {
+            'value': value,
+            'timestamp': time.time()
+        }
+
+    def _get_cached_result(self, key: str) -> Any:
+        """Get cached result if valid"""
+        if self._is_cache_valid(key):
+            return self._cache[key]['value']
+        return None
+
+    @lru_cache(maxsize=128)
     def _run_ipmi_command(self, command: str) -> str:
         """Run an IPMI command and return the output"""
         try:
@@ -92,65 +116,61 @@ class IPMIMonitor:
             logger.error(f"Error adding alert: {str(e)}")
 
     def get_health_status(self) -> Dict[str, Any]:
-        """Get overall health status of the server including motherboard status"""
+        """Get overall health status of the server"""
         try:
+            # Check cache first
+            cached = self._get_cached_result('health_status')
+            if cached:
+                return cached
+                
+            # Get chassis status
+            chassis_status = self._run_ipmi_command('chassis status')
+            
+            # Get system event log
+            sel_log = self._run_ipmi_command('sel elist')
+            
+            # Get motherboard status
+            motherboard_status = self._run_ipmi_command('fru print 0')
+            
+            # Parse chassis status
             status = {
                 'overall_status': 'OK',
-                'components': {},
-                'motherboard_status': 'OK'
+                'motherboard_status': 'OK',
+                'chassis_status': {},
+                'sel_log': []
             }
             
-            # Check motherboard status
-            motherboard_status = self._run_ipmi_command("sdr type Motherboard")
-            for line in motherboard_status.split('\n'):
-                if not line.strip():
-                    continue
-                
-                try:
-                    parts = line.split('|')
-                    if len(parts) < 3:
-                        continue
-                    
-                    sensor_name = parts[0].strip()
-                    status_text = parts[2].strip()
-                    
-                    if 'fail' in status_text.lower():
-                        status['motherboard_status'] = 'Critical'
-                        status['overall_status'] = 'Critical'
-                        self._add_alert(f"Motherboard failure detected: {sensor_name}", 'Critical')
-                except Exception as e:
-                    logger.error(f"Error checking motherboard status: {str(e)}")
-                    continue
+            # Check chassis status
+            if 'Chassis Power is on' not in chassis_status:
+                status['overall_status'] = 'Critical'
+                self._add_alert('Chassis power is off', 'Critical')
             
-            # Get sensor readings
-            sensors = self._run_ipmi_command("sdr")
-            
-            # Parse sensor readings
-            for line in sensors.split('\n'):
-                if not line.strip():
-                    continue
-                
-                try:
-                    parts = line.split('|')
-                    if len(parts) < 3:
-                        continue
-                    
-                    sensor_name = parts[0].strip()
-                    reading = parts[1].strip()
-                    status_text = parts[2].strip()
-                    
-                    # Add to components
-                    status['components'][sensor_name] = {
-                        'reading': reading,
-                        'status': status_text
-                    }
-                    
-                    # Update overall status if any component is critical
-                    if 'critical' in status_text.lower():
+            # Check SEL log for critical events
+            if sel_log:
+                for line in sel_log.split('\n'):
+                    if 'Critical' in line:
                         status['overall_status'] = 'Critical'
-                        self._add_alert(f"Component failure: {sensor_name}", 'Critical')
-                    elif 'warning' in status_text.lower():
+                        self._add_alert(f'SEL log contains critical event: {line}', 'Critical')
+                    elif 'Warning' in line:
                         status['overall_status'] = 'Warning'
+                        self._add_alert(f'SEL log contains warning event: {line}', 'Warning')
+            
+            # Check motherboard status
+            if 'FRU Device Description' in motherboard_status:
+                status['motherboard_status'] = 'OK'
+            else:
+                status['motherboard_status'] = 'Critical'
+                status['overall_status'] = 'Critical'
+                self._add_alert('Motherboard FRU information not available', 'Critical')
+            
+            # Add chassis status details
+            for line in chassis_status.split('\n'):
+                if ':' in line:
+                    key, value = line.split(':', 1)
+                    status['chassis_status'][key.strip()] = value.strip()
+            
+            # Cache the result
+            self._cache_result('health_status', status)
                 except Exception as e:
                     logger.error(f"Error parsing sensor: {str(e)}")
                     continue
