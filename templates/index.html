@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IPMI Server Monitoring</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <style>
+        .metric-card {
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .critical {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .warning {
+            color: #ffc107;
+            font-weight: bold;
+        }
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .bg-critical {
+            background-color: #f8d7da;
+        }
+        .bg-warning {
+            background-color: #fff3cd;
+        }
+        .bg-success {
+            background-color: #d4edda;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h1 class="text-center mb-4">IPMI Server Monitoring Dashboard</h1>
+
+        <!-- Server Overview -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="metric-card bg-white p-4 rounded shadow">
+                    <h3>Server Overview</h3>
+                    <div class="row" id="serverOverview">
+                        <!-- Server cards will be dynamically added here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detailed Server Metrics -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="metric-card bg-white p-4 rounded shadow">
+                    <h3>Selected Server Metrics</h3>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h4>System Information</h4>
+                            <ul class="list-group">
+                                <li class="list-group-item">Server Name: <span id="selectedServerName">--</span></li>
+                                <li class="list-group-item">IP Address: <span id="selectedServerIp">--</span></li>
+                                <li class="list-group-item">Manufacturer: <span id="selectedServerManufacturer">--</span></li>
+                                <li class="list-group-item">Model: <span id="selectedServerModel">--</span></li>
+                                <li class="list-group-item">Serial Number: <span id="selectedServerSerial">--</span></li>
+                                <li class="list-group-item">Firmware Version: <span id="selectedServerFirmware">--</span></li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h4>Overall Health</h4>
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h5>Status: <span id="selectedServerHealthStatus" class="badge bg-success">OK</span></h5>
+                                    <h5>Motherboard: <span id="selectedServerMotherboardStatus" class="badge bg-success">OK</span></h5>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <h4>Power Supplies</h4>
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>PSU</th>
+                                            <th>Status</th>
+                                            <th>Reading</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="ipmiPowerTableBody">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <h4>Temperatures</h4>
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Sensor</th>
+                                            <th>Temperature (°C)</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="ipmiTempTableBody">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <h4>Fans</h4>
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Fan</th>
+                                            <th>Status</th>
+                                            <th>Reading</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="ipmiFanTableBody">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <h4>Memory Modules</h4>
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Module</th>
+                                            <th>Status</th>
+                                            <th>Reading</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="ipmiMemoryTableBody">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <h4>Storage</h4>
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Drive</th>
+                                            <th>Status</th>
+                                            <th>Reading</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="ipmiStorageTableBody">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status and Timestamp -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="metric-card bg-white p-4 rounded shadow">
+                    <h3>System Status</h3>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h5>Status: <span id="statusMessage" class="badge bg-success">OK</span></h5>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h5>Last Updated: <span id="lastUpdated">--</span></h5>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let selectedServer = null;
+
+        function updateServerOverview(data) {
+            const serverOverview = document.getElementById('serverOverview');
+            serverOverview.innerHTML = '';
+
+            Object.entries(data.servers).forEach(([serverName, metrics]) => {
+                const serverCard = document.createElement('div');
+                serverCard.className = 'col-md-4 mb-3';
+                
+                const healthStatus = metrics.health?.overall_status || 'Unknown';
+                const healthClass = healthStatus.toLowerCase();
+                
+                serverCard.innerHTML = `
+                    <div class="card ${healthClass === 'critical' ? 'border-danger' : healthClass === 'warning' ? 'border-warning' : ''}" 
+                          onclick="selectServer('${serverName}')">
+                        <div class="card-body">
+                            <h5 class="card-title">${serverName}</h5>
+                            <p class="card-text">
+                                <span class="badge bg-${healthClass}">${healthStatus}</span>
+                            </p>
+                            <p class="card-text">
+                                IP: ${metrics.system_info?.ip_address || '--'}
+                            </p>
+                            <p class="card-text">
+                                Model: ${metrics.system_info?.model || '--'}
+                            </p>
+                        </div>
+                    </div>
+                `;
+                
+                serverOverview.appendChild(serverCard);
+            });
+        }
+
+        function selectServer(serverName) {
+            selectedServer = serverName;
+            updateMetrics();
+        }
+
+        function updateMetrics() {
+            fetch('/metrics')
+                .then(response => response.json())
+                .then(data => {
+                    // Update status and timestamp
+                    document.getElementById('lastUpdated').textContent = data.timestamp;
+                    
+                    // Update server overview
+                    updateServerOverview(data);
+                    
+                    // If no server is selected, select the first one with issues
+                    if (!selectedServer) {
+                        const servers = Object.entries(data.servers);
+                        for (const [serverName, metrics] of servers) {
+                            if (metrics.health?.overall_status !== 'OK') {
+                                selectServer(serverName);
+                                break;
+                            }
+                        }
+                        if (!selectedServer) {
+                            // If no server with issues, select the first one
+                            selectServer(servers[0][0]);
+                        }
+                    }
+                    
+                    // Update selected server metrics
+                    const metrics = data.servers[selectedServer] || {};
+                    
+                    // Update system info
+                    document.getElementById('selectedServerName').textContent = selectedServer;
+                    document.getElementById('selectedServerIp').textContent = metrics.system_info?.ip_address || '--';
+                    document.getElementById('selectedServerManufacturer').textContent = metrics.system_info?.manufacturer || '--';
+                    document.getElementById('selectedServerModel').textContent = metrics.system_info?.model || '--';
+                    document.getElementById('selectedServerSerial').textContent = metrics.system_info?.serial_number || '--';
+                    document.getElementById('selectedServerFirmware').textContent = metrics.system_info?.firmware_version || '--';
+
+                    // Update health status
+                    const healthStatus = metrics.health?.overall_status || 'Unknown';
+                    const healthBadge = document.getElementById('selectedServerHealthStatus');
+                    healthBadge.textContent = healthStatus;
+                    healthBadge.className = `badge bg-${healthStatus.toLowerCase()}`;
+
+                    // Update motherboard status
+                    const motherboardStatus = metrics.health?.motherboard_status || 'Unknown';
+                    const motherboardBadge = document.getElementById('selectedServerMotherboardStatus');
+                    motherboardBadge.textContent = motherboardStatus;
+                    motherboardBadge.className = `badge bg-${motherboardStatus.toLowerCase()}`;
+
+                    // Update overall status
+                    const statusMessage = document.getElementById('statusMessage');
+                    let hasCritical = false;
+                    let hasWarning = false;
+
+                    // Check IPMI health
+                    if (data.ipmi.health.overall_status === 'Critical') hasCritical = true;
+                    if (data.ipmi.health.overall_status === 'Warning') hasWarning = true;
+
+                    // Check power supplies
+                    if (data.ipmi.power.status === 'Critical') hasCritical = true;
+                    if (data.ipmi.power.status === 'Warning') hasWarning = true;
+
+                    // Check temperatures
+                    if (data.ipmi.temperature.status === 'Critical') hasCritical = true;
+                    if (data.ipmi.temperature.status === 'Warning') hasWarning = true;
+
+                    // Check fans
+                    if (data.ipmi.fans.status === 'Critical') hasCritical = true;
+                    if (data.ipmi.fans.status === 'Warning') hasWarning = true;
+
+                    // Check memory modules
+                    if (data.ipmi.memory.status === 'Critical') hasCritical = true;
+                    if (data.ipmi.memory.status === 'Warning') hasWarning = true;
+
+                    // Check storage
+                    if (data.ipmi.storage.status === 'Critical') hasCritical = true;
+                    if (data.ipmi.storage.status === 'Warning') hasWarning = true;
+
+                    if (hasCritical) {
+                        statusMessage.className = 'lead critical';
+                        statusMessage.textContent = 'Critical: System has critical issues!';
+                    } else if (hasWarning) {
+                        statusMessage.className = 'lead warning';
+                        statusMessage.textContent = 'Warning: System has warnings!';
+                    } else {
+                        statusMessage.className = 'lead success';
+                        statusMessage.textContent = 'OK: All systems are healthy';
+                    }
+
+                    // IPMI System Info
+                    document.getElementById('ipmiServerName').textContent = data.ipmi.system_info.server_name;
+                    document.getElementById('ipmiIpAddress').textContent = data.ipmi.system_info.ip_address;
+                    document.getElementById('ipmiManufacturer').textContent = data.ipmi.system_info.manufacturer;
+                    document.getElementById('ipmiModel').textContent = data.ipmi.system_info.model;
+                    document.getElementById('ipmiSerial').textContent = data.ipmi.system_info.serial_number;
+                    document.getElementById('ipmiFirmware').textContent = data.ipmi.system_info.firmware_version;
+
+                    // IPMI Power Supplies
+                    const powerTableBody = document.getElementById('ipmiPowerTableBody');
+                    powerTableBody.innerHTML = '';
+                    metrics.power?.power_supplies?.forEach(psu => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${psu.name}</td>
+                            <td><span class="${psu.status.toLowerCase()}">${psu.status}</span></td>
+                            <td>${psu.reading}</td>
+                        `;
+                        powerTableBody.appendChild(row);
+                    });
+
+                    // IPMI Temperatures
+                    const tempTableBody = document.getElementById('ipmiTempTableBody');
+                    tempTableBody.innerHTML = '';
+                    metrics.temperature?.temperatures?.forEach(temp => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${temp.name}</td>
+                            <td>${temp.temperature}°C</td>
+                            <td>${temp.status}</td>
+                        `;
+                        tempTableBody.appendChild(row);
+                    });
+
+                    // IPMI Fans
+                    const fanTableBody = document.getElementById('ipmiFanTableBody');
+                    fanTableBody.innerHTML = '';
+                    metrics.fans?.fans?.forEach(fan => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${fan.name}</td>
+                            <td>${fan.status}</td>
+                            <td>${fan.reading}</td>
+                        `;
+                        fanTableBody.appendChild(row);
+                    });
+
+                    // IPMI Memory
+                    const memoryTableBody = document.getElementById('ipmiMemoryTableBody');
+                    memoryTableBody.innerHTML = '';
+                    metrics.memory?.memory_modules?.forEach(mem => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${mem.name}</td>
+                            <td><span class="${mem.status.toLowerCase()}">${mem.status}</span></td>
+                            <td>${mem.reading}</td>
+                        `;
+                        memoryTableBody.appendChild(row);
+                    });
+
+                    // IPMI Storage
+                    const storageTableBody = document.getElementById('ipmiStorageTableBody');
+                    storageTableBody.innerHTML = '';
+                    metrics.storage?.drives?.forEach(drive => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${drive.name}</td>
+                            <td>${drive.status}</td>
+                            <td>${drive.reading}</td>
+                        `;
+                        storageTableBody.appendChild(row);
+                    });
+
+                    // Update alert history
+                    const alertHistory = metrics.alert_history;
+                    if (alertHistory.length > 0) {
+                        const alertHistoryDiv = document.getElementById('alertHistory');
+                        if (!alertHistoryDiv) {
+                            const alertsDiv = document.createElement('div');
+                            alertsDiv.className = 'col-12 mt-4';
+                            alertsDiv.innerHTML = `
+                                <h4>Recent Alerts</h4>
+                                <div class="table-responsive">
+                                    <table class="table">
+                                        <thead>
+                                            <tr>
+                                                <th>Timestamp</th>
+                                                <th>Severity</th>
+                                                <th>Message</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="alertHistoryTableBody">
+                                        </tbody>
+                                    </table>
+                                </div>
+                            `;
+                            document.querySelector('.container').appendChild(alertsDiv);
+                        }
+                        
+                        const alertTableBody = document.getElementById('alertHistoryTableBody');
+                        alertTableBody.innerHTML = '';
+                        alertHistory.forEach(alert => {
+                            const row = document.createElement('tr');
+                            row.className = `alert-${alert.severity.toLowerCase()}`;
+                            row.innerHTML = `
+                                <td>${alert.timestamp}</td>
+                                <td><span class="${alert.severity.toLowerCase()}">${alert.severity}</span></td>
+                                <td>${alert.message}</td>
+                            `;
+                            alertTableBody.appendChild(row);
+                        });
+                    // Check memory modules
+                    if (data.ipmi.memory.status === 'Critical') hasCritical = true;
+                    if (data.ipmi.memory.status === 'Warning') hasWarning = true;
+
+                    // Check storage
+                    if (data.ipmi.storage.status === 'Critical') hasCritical = true;
+                    if (data.ipmi.storage.status === 'Warning') hasWarning = true;
+
+                    if (hasCritical) {
+                        statusMessage.className = 'lead critical';
+                        statusMessage.textContent = 'Critical: System has critical issues!';
+                        document.querySelector('.status-indicator').className = 'status-indicator critical';
+                    } else if (hasWarning) {
+                        statusMessage.className = 'lead warning';
+                        statusMessage.textContent = 'Warning: System has warnings.';
+                        document.querySelector('.status-indicator').className = 'status-indicator warning';
+                    } else {
+                        statusMessage.className = 'lead healthy';
+                        statusMessage.textContent = 'System is healthy.';
+                        document.querySelector('.status-indicator').className = 'status-indicator healthy';
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        // Initial update and then update every 30 seconds
+        updateMetrics();
+        setInterval(updateMetrics, 30000);
+    </script>
+</body>
+</html>
